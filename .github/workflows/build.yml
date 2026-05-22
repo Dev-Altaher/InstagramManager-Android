@@ -57,32 +57,53 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
           
+          # Create proper directory structure
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest 2>/dev/null || true
+          
           # Accept SDK licenses
           mkdir -p licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > licenses/android-sdk-license
           echo "504667f4c0de7973335447fc6aeaae83a7previewlicense" > licenses/android-sdk-preview-license
-          
+      
       - name: Install Android SDK tools
         run: |
           export ANDROID_HOME=$HOME/Android/sdk
           export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
           
-          # Install build-tools and platforms
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --no_https "build-tools;35.0.0"
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --no_https "platforms;android-35"
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --no_https "platform-tools"
+          # Install build-tools and platforms using yes to accept prompts
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.0"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools"
+          
+          # Create symlink for buildozer
+          mkdir -p $HOME/.buildozer/android/platform/android-sdk
+          ln -sf $ANDROID_HOME/build-tools $HOME/.buildozer/android/platform/android-sdk/build-tools || true
+          ln -sf $ANDROID_HOME/platforms $HOME/.buildozer/android/platform/android-sdk/platforms || true
+          ln -sf $ANDROID_HOME/platform-tools $HOME/.buildozer/android/platform/android-sdk/platform-tools || true
       
       - name: Build APK with Buildozer
         run: |
+          export ANDROID_HOME=$HOME/Android/sdk
+          export ANDROID_NDK_HOME=$HOME/Android/sdk/android-ndk-r25b
+          export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
           buildozer android debug
         env:
-          ANDROID_HOME: ${{ runner.workspace }}/Android/sdk
-          ANDROID_NDK_HOME: ${{ runner.workspace }}/Android/sdk/android-ndk-r25b
+          ANDROID_HOME: ${{ runner.home }}/Android/sdk
+          ANDROID_NDK_HOME: ${{ runner.home }}/Android/sdk/android-ndk-r25b
           JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: instagram-manager.apk
           path: bin/*.apk
+          
+      - name: Upload Build Logs on Failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: buildozer-logs
+          path: .buildozer/android/platform/build-*/build/logs/
