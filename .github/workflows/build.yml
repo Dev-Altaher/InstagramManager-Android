@@ -18,6 +18,12 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      
       - name: Install dependencies
         run: |
           pip install --upgrade pip
@@ -35,23 +41,45 @@ jobs:
             zlib1g-dev \
             openjdk-11-jdk \
             wget \
-            git
+            git \
+            unzip
       
       - name: Setup Android SDK
         run: |
           mkdir -p ~/Android/sdk
           cd ~/Android/sdk
-          wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+          
+          # Download and extract NDK
+          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip -q android-ndk-r25b-linux.zip
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          
+          # Download and extract command-line tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
+          
+          # Accept SDK licenses
+          mkdir -p licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > licenses/android-sdk-license
+          echo "504667f4c0de7973335447fc6aeaae83a7previewlicense" > licenses/android-sdk-preview-license
+          
+      - name: Install Android SDK tools
+        run: |
+          export ANDROID_HOME=$HOME/Android/sdk
+          export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+          export PATH=$JAVA_HOME/bin:$PATH
+          
+          # Install build-tools and platforms
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --no_https "build-tools;35.0.0"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --no_https "platforms;android-35"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --no_https "platform-tools"
       
       - name: Build APK with Buildozer
         run: |
           buildozer android debug
         env:
-          ANDROID_HOME: ~/Android/sdk
-          ANDROID_NDK_HOME: ~/Android/sdk/android-ndk-r25b
+          ANDROID_HOME: ${{ runner.workspace }}/Android/sdk
+          ANDROID_NDK_HOME: ${{ runner.workspace }}/Android/sdk/android-ndk-r25b
+          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
